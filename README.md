@@ -55,3 +55,8 @@ echo json_encode( $result, JSON_PRETTY_PRINT);
 
 }
 ```
+
+# more
+A somewhat more extensive usage example can be found in the file *usage_example.php*
+
+See also the source code *agorameter.class.php* to find further functions or settings not shown in the examples.
