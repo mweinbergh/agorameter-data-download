@@ -3,7 +3,7 @@ Download German electricity generation, demand, import and export data from the 
 
 'Agora Energiewende' offers a CSV data download for the time range shown in the charts on its Agorameter website.
 
-This PHP class here loads data for a given time range into a PHP array variable. If the time range spans several months, the data is loaded in monthly chunks. The data itself is provided in hourly resolution.  The electrical power unit is GW (1E9 W), the power price is in EUR. Negative country export values (key "at", "be" and so on) mean import.
+This PHP class here loads data for a given time range into a PHP array variable. If the time range spans several months, the data is loaded in monthly chunks. The data itself is provided in hourly resolution.  The electrical power unit is GW (1E9 W), the power price is in EUR/MWh. Negative country export values (key "at", "be" and so on) mean import.
 
 # Basic use:
 
