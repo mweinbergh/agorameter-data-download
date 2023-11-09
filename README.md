@@ -17,7 +17,7 @@ while( ($dc=$agd->getNextDataChunk())!==false ) $result=array_merge($result, $dc
 echo json_encode( $result, JSON_PRETTY_PRINT);
 ```
 
-# Output:
+### Output:
 ```
 {
     "2023-08-15T00:00:00": {
