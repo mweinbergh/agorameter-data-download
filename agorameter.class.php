@@ -88,9 +88,12 @@ private function fetchAgoraData($firstDay, $lastDay, $powerUnit) {
 		$powerUnit = $powerUnit==1E9 ? null : 1E9/$powerUnit;
 		$error='';
 		foreach( $result as $t=>$d ) {
-			if( !is_array($d) || count($d)!=count($this->mapping['prod'])+count($this->mapping['imex']) ) {
-				$warning="The number of elements of the mapping and the received data do not match in Record '$t'.";
+			if( !isset($d[ $this->mapping['prod']['Nuclear'] ]) ) $d[ $this->mapping['prod']['Nuclear'] ]=0;
+			$rec_c=0; $map_c=0;
+			if( !is_array($d) || ($rec_c=count($d))!=($map_c=count($this->mapping['prod'])+count($this->mapping['imex'])) ) {
+				$warning="The number of elements of the mapping (n=$map_c) and the received data (n=$rec_c) do not match in Record '$t'.";
 				$this->writeJournal('warning', ['warning'=>$warning, 'chunk'=>$this->getMonthChunksPointer() ] );
+				$error=$warning;
 				break;
 			}
 			if( $powerUnit ) {
@@ -102,7 +105,9 @@ private function fetchAgoraData($firstDay, $lastDay, $powerUnit) {
 				}
 			}
 		}
-		if( !$error ) {
+		if( $error ) {
+			$result['error'] = $error;
+		} else {
 			$this->recordsCount['chunks'][$this->rangeChunksPointer]=count($result);
 			$total=0;
 			foreach( $this->recordsCount['chunks'] as $r ) $total+=$r;
@@ -112,8 +117,7 @@ private function fetchAgoraData($firstDay, $lastDay, $powerUnit) {
 	return $result;
 }
 
-private function fetchAgoraDatasetByType($firstDay, $lastDay, $result, $type) {
-	$ch = curl_init();
+private function fetchAgoraDatasetByType($firstDay, $lastDay, $result, $type, $trials=5, $waitBeforeRetry=20) {
 	$valueNames = "'" . join("','", array_keys($this->mapping[$type])) . "'";
 	$filters=[
 		'prod'=>"{
@@ -158,19 +162,25 @@ private function fetchAgoraDatasetByType($firstDay, $lastDay, $result, $type) {
 	];
 	$filters[$type]=preg_replace("/[\t\r\n]+/", "", $filters[$type]);
 	$filters[$type]=preg_replace("/'/", '"', $filters[$type]);
-	$response = $this->curl_exec($ch, $filters[$type]);
-	$data=json_decode($response, true);
-	if( isset($data['data']['data']) && is_array($data['data']['data']) ) {
-		foreach($data['data']['data'] as $d ) {
-			$name = isset($this->mapping[$type][$d[2]]) ? $this->mapping[$type][$d[2]] : $d[2];
-			$result[$d[0]][$name]=$d[1];
+	$retry=$trials;
+	while( $retry-->0 && !isset($result['error']) ) {
+		if( isset($result['error']) ) unset($result['error']);
+		$ch = curl_init();
+		$response = $this->curl_exec($ch, $filters[$type]);
+		$data=json_decode($response, true);
+		if( isset($data['data']['data']) && is_array($data['data']['data']) ) {
+			foreach($data['data']['data'] as $d ) {
+				$name = isset($this->mapping[$type][$d[2]]) ? $this->mapping[$type][$d[2]] : $d[2];
+				$result[$d[0]][$name]=$d[1];
+			}
+		} else {
+			$error="No valid data received after $trials attempts.";
+			$this->writeJournal('error', ['error'=>$error, 'type'=>$type, 'chunk'=>$this->getMonthChunksPointer() ]);
+			$result['error']=$error;
+			sleep($waitBeforeRetry);
 		}
-	} else {
-		$error="No valid data received.";
-		$this->writeJournal('error', ['error'=>$error, 'type'=>$type, 'chunk'=>$this->getMonthChunksPointer() ]);
-		$result['error']=$error;
+		$lastKey=array_key_last($result); if( count($result)>1 && strstr($lastKey, 'T00:00:00') ) unset($result[$lastKey]);
 	}
-	$lastKey=array_key_last($result); if( count($result)>1 && strstr($lastKey, 'T00:00:00') ) unset($result[$lastKey]);
 	return $result;
 }
 
