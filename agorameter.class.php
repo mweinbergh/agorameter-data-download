@@ -224,8 +224,8 @@ private function writeJournal($key, $error) {
 // borrowed and adapted from https://gist.github.com/zashme/aa5c578ded5fc99aa65a
 private function getMonthRanges($start, $end)
 {
-	$timeStart = strtotime($start);
-	$timeEnd   = strtotime($end);
+	$timeStart = strtotime("$start 12:00:00");
+	$timeEnd   = strtotime("$end 12:00:00");
 	$out       = [];
 	$milestones[] = $timeStart;
 	$timeEndMonth = strtotime('first day of next month midnight', $timeStart);
