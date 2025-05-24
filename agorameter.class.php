@@ -118,81 +118,81 @@ private function fetchAgoraData($firstDay, $lastDay, $powerUnit) {
 }
 
 private function fetchAgoraDatasetByType($firstDay, $lastDay, $result, $type, $trials=5, $waitBeforeRetry=20) {
-	$valueNames = "'" . join("','", array_keys($this->mapping[$type])) . "'";
+	$valueNames = "\"" . join("\",\"", array_keys($this->mapping[$type])) . "\"";
 	$filters=[
-		'prod'=>"{
-			'filters':
-			{
-				'from':'$firstDay',
-				'to':'$lastDay',
-				'generation':[$valueNames]
+		'prod' => "{
+			\"filters\": {
+				\"from\": \"$firstDay\",
+				\"to\": \"$lastDay\",
+				\"generation\": [$valueNames]
 			},
-			'x_coordinate':'date_id',
-			'y_coordinate':'value',
-			'view_name':'live_gen_plus_emi_de_hourly',
-			'kpi_name':'power_generation',
-			'z_coordinate':'generation'
+			\"xCoordinate\": \"date_id\",
+			\"yCoordinate\": \"value\",
+			\"viewName\": \"live_gen_plus_emi_de_hourly\",
+			\"kpiName\": \"power_generation\",
+			\"zCoordinate\": \"generation\"
 		}",
-		'imex'=>"{
-			'filters': {
-				'from': '$firstDay',
-				'to': '$lastDay',
-				'legends': [
-					'Power price',
-					'Net Total',
-					'NO',
-					'DK',
-					'SE',
-					'PL',
-					'CZ',
-					'AT',
-					'CH',
-					'FR',
-					'LU',
-					'BE',
-					'NL'
+		'imex' => "{
+			\"filters\": {
+				\"from\": \"$firstDay\",
+				\"to\": \"$lastDay\",
+				\"legends\": [
+					\"Power price\",
+					\"Net Total\",
+					\"NO\",
+					\"DK\",
+					\"SE\",
+					\"PL\",
+					\"CZ\",
+					\"AT\",
+					\"CH\",
+					\"FR\",
+					\"LU\",
+					\"BE\",
+					\"NL\"
 				]
 			},
-			'kpi_name': 'power_import_export',
-			'view_name': 'live_exchange_plus_price_de_hourly',
-			'x_coordinate': 'date_id',
-			'y_coordinate': 'value',
-			'z_coordinate': 'legends'
+			\"kpiName\": \"power_import_export\",
+			\"viewName\": \"live_exchange_plus_price_de_hourly\",
+			\"xCoordinate\": \"date_id\",
+			\"yCoordinate\": \"value\",
+			\"zCoordinate\": \"legends\"
 		}"
 	];
-	$filters[$type]=preg_replace("/[\t\r\n]+/", "", $filters[$type]);
-	$filters[$type]=preg_replace("/'/", '"', $filters[$type]);
-	$retry=$trials;
-	while( $retry-->0 && !isset($result['error']) ) {
-		if( isset($result['error']) ) unset($result['error']);
+	$filters[$type] = preg_replace("/[\t\r\n]+/", "", $filters[$type]);
+	$retry = $trials;
+	while ($retry-- > 0 && !isset($result['error'])) {
+		if (isset($result['error'])) unset($result['error']);
 		$ch = curl_init();
 		$response = $this->curl_exec($ch, $filters[$type]);
-		$data=json_decode($response, true);
-		if( isset($data['data']['data']) && is_array($data['data']['data']) ) {
-			foreach($data['data']['data'] as $d ) {
+		$this->writeJournal('filters', ['type' => $type, 'payload' => $filters[$type]]); // Logge die gesendete Payload
+		$data = json_decode($response, true);
+		if (isset($data['data']['data']) && is_array($data['data']['data'])) {
+			foreach ($data['data']['data'] as $d) {
 				$name = isset($this->mapping[$type][$d[2]]) ? $this->mapping[$type][$d[2]] : $d[2];
-				$result[$d[0]][$name]=$d[1];
+				$result[$d[0]][$name] = $d[1];
 			}
 		} else {
-			$error="No valid data received after $trials attempts.";
-			$this->writeJournal('error', ['error'=>$error, 'type'=>$type, 'chunk'=>$this->getMonthChunksPointer() ]);
-			$result['error']=$error;
+			$error = "No valid data received after $trials attempts.";
+			$this->writeJournal('error', ['error' => $error, 'type' => $type, 'chunk' => $this->getMonthChunksPointer(), 'response' => $response]);
+			$result['error'] = $error;
 			sleep($waitBeforeRetry);
 		}
-		$lastKey=array_key_last($result); if( count($result)>1 && strstr($lastKey, 'T00:00:00') ) unset($result[$lastKey]);
+		$lastKey = array_key_last($result);
+		if (count($result) > 1 && strstr($lastKey, 'T00:00:00')) unset($result[$lastKey]);
 	}
 	return $result;
 }
 
 private function curl_exec($ch, $filters) {
-	$api_key="agora_live_62ce76dd202927.67115829";
-	$curlOptions=[
+	$api_key = "agora_live_62ce76dd202927.67115829";
+	$curlOptions = [
 		CURLOPT_URL => $this->apiUrl,
 		CURLOPT_RETURNTRANSFER => true,
 		CURLOPT_CUSTOMREQUEST => "POST",
 		CURLOPT_POSTFIELDS => $filters,
 		CURLOPT_ENCODING => '',
-		CURLINFO_HEADER_OUT => '',
+		CURLINFO_HEADER_OUT => true, // Aktiviere Header-Logging
 		CURLOPT_HTTPHEADER => [
 			"User-Agent: $this->userAgent",
 			"Accept: */*",
@@ -204,21 +204,23 @@ private function curl_exec($ch, $filters) {
 		CURLOPT_CONNECTTIMEOUT => $this->curlConnectTimeout,
 		CURLOPT_TIMEOUT => $this->curlTimeout,
 	];
-	if( $this->socks5Proxy ) {
-		$curlOptions[CURLOPT_PROXYTYPE]=CURLPROXY_SOCKS5;
-		$curlOptions[CURLOPT_PROXY]=$this->socks5Proxy;
+	if ($this->socks5Proxy) {
+		$curlOptions[CURLOPT_PROXYTYPE] = CURLPROXY_SOCKS5_HOSTNAME; // Für TOR
+		$curlOptions[CURLOPT_PROXY] = $this->socks5Proxy;
 	}
 	curl_setopt_array($ch, $curlOptions);
-	if( $this->preFetchShellScript ) shell_exec($this->preFetchShellScript);
+	if ($this->preFetchShellScript) shell_exec($this->preFetchShellScript);
 	$response = curl_exec($ch);
-	if( $this->postFetchShellScript ) shell_exec($this->postFetchShellScript);
-	$this->writeJournal('curl', [ 'options'=>$curlOptions, 'info'=>curl_getinfo($ch) ]);
+	$curlInfo = curl_getinfo($ch);
+	$this->writeJournal('curl', ['options' => $curlOptions, 'info' => $curlInfo, 'response' => $response]);
+	if ($this->postFetchShellScript) shell_exec($this->postFetchShellScript);
 	return $response;
 }
 
 private function writeJournal($key, $error) {
-	$ts=new DateTime(); $ts=$ts->format('Y-m-d\TH:i:s.v');
-	$this->journal[$ts][$key]=$error;
+	$ts = new DateTime();
+	$ts = $ts->format('Y-m-d\TH:i:s.v');
+	$this->journal[$ts][$key] = $error;
 }
 
 // borrowed and adapted from https://gist.github.com/zashme/aa5c578ded5fc99aa65a
@@ -246,32 +248,31 @@ private function getMonthRanges($start, $end)
 }
 
 public function setMapping($mapping) {
-	$this->mapping=$mapping;
+	$this->mapping = $mapping;
 }
 public function setRangeChunksPointer($rangeChunksPointer) {
-	$this->rangeChunksPointer=$rangeChunksPointer;
+	$this->rangeChunksPointer = $rangeChunksPointer;
 }
 public function setPreFetchShellScript($preFetchShellScript) {
-	$this->preFetchShellScript=$preFetchShellScript;
+	$this->preFetchShellScript = $preFetchShellScript;
 }
 public function setPostFetchShellScript($postFetchShellScript) {
-	$this->postFetchShellScript=$postFetchShellScript;
+	$this->postFetchShellScript = $postFetchShellScript;
 }
 public function setApiUrl($apiUrl) {
-	$this->$apiUrl=$apiUrl;
+	$this->apiUrl = $apiUrl;
 }
 public function setUserAgent($userAgent) {
-	$this->$userAgent=$userAgent;
+	$this->userAgent = $userAgent;
 }
 public function setSocks5Proxy($socks5Proxy) {
-	if( !preg_match('/:[0-9]+$/', $socks5Proxy) ) return false;
-	$this->socks5Proxy=$socks5Proxy;
+	if (!preg_match('/:[0-9]+$/', $socks5Proxy)) return false;
+	$this->socks5Proxy = $socks5Proxy;
 }
-public function setTimeouts( $curlConnectTimeout, $curlTimeout) {
-	$this->curlConnectTimeout=$curlConnectTimeout;
-	$this->curlTimeout=$curlTimeout;
+public function setTimeouts($curlConnectTimeout, $curlTimeout) {
+	$this->curlConnectTimeout = $curlConnectTimeout;
+	$this->curlTimeout = $curlTimeout;
 }
-
 
 public function getMapping() {
 	return $this->mapping;
